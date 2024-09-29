@@ -38,7 +38,9 @@ def printacronyms(elem: panflute.Element,
     if doc.format in ("latex", "beamer"):
         return latex(elem, doc)
 
-    return plain(elem, doc)
+    return definition_list(elem, doc)
+
+    #return plain(elem, doc)
 
 
 def latex(elem: Union[panflute.Div, panflute.Header],
@@ -82,6 +84,56 @@ def latex(elem: Union[panflute.Div, panflute.Header],
     args = ("[" + ",".join(options) + "]") if options else ""
     return panflute.RawBlock(r"\printacronyms" + args, format="latex")
 
+
+def definition_list(elem: Union[panflute.Div, panflute.Header],
+                    doc: panflute.Doc) -> Optional[panflute.Div]:
+    logger = logging.getLogger(__name__ + ".definition_list")
+    if "acronyms" not in doc.metadata:
+        return None
+
+    if isinstance(elem, panflute.Header):
+        header = elem
+    elif isinstance(elem, panflute.Div):
+        header = panflute.Header(panflute.Str(
+                                    elem.attributes.get("name", "Acronyms")
+                                 ),
+                                 level=elem.attributes.get("level", 1))
+    else:
+        cls = type(elem)
+        logger.warning(f"Unknown element type {cls}")
+        return None
+
+    if "sort" in elem.attributes:
+        sort = elem.attributes["sort"].lower()
+        if sort not in ("true", "false"):
+            sort = "true"
+            logger.warning(f"Unknown 'sort' option '{sort}'")
+    else:
+        sort = "true"
+
+    if sort == "true":
+        acronyms = sorted(doc.acronyms.values(), key=lambda x: x["short"])
+    else:
+        acronyms = doc.acronyms.values()
+
+    defitems = []
+
+    for acro in acronyms:
+        #logger.error(repr(acro))
+        if acro["list"]:
+            long_para = panflute.convert_text(acro["long"]) # is Para
+            d = panflute.Definition(long_para[0])
+            di = panflute.DefinitionItem([panflute.Str(acro["short"])], [d])
+            defitems.append(di)
+
+    def1 = panflute.Definition(panflute.Para(panflute.Str('...emails')))
+    def2 = panflute.Definition(panflute.Para(panflute.Str('...meat')))
+    di = panflute.DefinitionItem([panflute.Str('Spam')], [def1, def2])
+
+    dl = panflute.DefinitionList(*defitems)
+
+    return panflute.Div(header, dl,
+                        identifier="acronym-list")
 
 def plain(elem: Union[panflute.Div, panflute.Header],
           doc: panflute.Doc) -> Optional[panflute.Div]:
